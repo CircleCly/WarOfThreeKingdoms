@@ -1,4 +1,5 @@
 import random
+
 class Card():
     def __init__(self, suit: str, num: int, name: str):
         self.suit = suit
@@ -18,7 +19,7 @@ class Card():
     
     def can_target(self, user, target) -> bool:
         if self.name == "fire":
-            return user != target
+            return target.hero.alive and user.id != target.id
         return True
         
     def __str__(self):
@@ -56,7 +57,9 @@ class Game():
         cur_player_id = 0
         while True:
             cur_player = self.players[cur_player_id]
-            cur_player.hero.do_round()
+            if cur_player.hero.alive:
+                cur_player.hero.do_round()
+            cur_player_id = (cur_player_id + 1) % len(self.players)
 
     
     def draw_card(self) -> Card:
@@ -65,6 +68,14 @@ class Game():
     def recycle_card(self, card):
         print(f"-1t {card}")
         self.discard_pile.append(card)
+
+    def check_win_condition(self):
+        alive_state = [v.hero.alive for v in self.players]
+        if sum(alive_state) == 1:
+            for i in range(len(self.players)):
+                if alive_state[i]:
+                    print(f"Player {i} won!")
+                    exit(0)
 
 class Player():
     '''
@@ -78,7 +89,28 @@ class Player():
     def choose_hero(self, hero):
         self.hero = hero
         hero.player = self
-        
+
+    def __str__(self):
+        return f"{self.id}: {self.hero.hp} / {self.hero.max_hp}, {len(self.hero.hand)} card(s)"
+    
+    def __repr__(self):
+        return str(self)
+
+def number_query(prompt, is_valid):
+    '''
+    Queries for a number until a valid input has been given
+    '''
+    valid = False
+    while not valid:
+        try:
+            val = int(input(prompt))
+            valid = is_valid(val)
+            if not valid:
+                print("Invalid Input.")
+        except ValueError:
+            valid = False
+            print("Invalid Input.")
+    return val
 
 class Hero():
     def __init__(self, hp: int, max_hp: int, game: Game):
@@ -109,32 +141,36 @@ class Hero():
         self.hand.append(self.game.draw_card())
 
     def deal(self):
-        print("Players:")
-        print(self.game.players)
-        print("Cards:")
-        print(self.hand)
+        index = None
+        while index != -1:
+            print(f"Player {self.player.id}'s turn!")
+            print("Players:")
+            print(self.game.players)
+            print("Cards:")
+            print(self.hand)
 
-        index = int(input("Card Index:"))
-        while not 0 <= index < len(self.hand) or not self.hand[index].usable_in_round():
-            index = int(input("Invalid index. Enter again:"))
-        card = self.hand.pop(index)
+            index = number_query("Card Index (-1 to pass):",
+                                 lambda x: x == -1 or
+                                 (0 <= x < len(self.hand) and self.hand[x].usable_in_round()))
+                                 
+            if index == -1:
+                break
+            card = self.hand.pop(index)
 
-        target_id = int(input("Target:"))
-        while not 0 <= index < len(self.game.players) or not card.can_target(self, self.game.players[target_id]):
-            target_id = int(input("Invalid target. Enter again:"))
-        target_player = self.game.players[target_id]
+            target_id = number_query("Target Id:",
+                                     lambda x: 0 <= x < len(self.game.players) and
+                                     card.can_target(self.player, self.game.players[x]))
+            target_player = self.game.players[target_id]
 
-        target_player.hero.respond(card, self)
-        self.game.discard_pile.append(card)
+            target_player.hero.respond(card, self)
+            self.game.discard_pile.append(card)
         pass
 
     def discard(self):
-        if len(self.hand) > self.hp:
+        while len(self.hand) > self.hp:
             print(f"Please discard {len(self.hand) - self.hp} card(s).")
             print(self.hand)
-            index = int(input("Card Index:"))
-            while not 0 <= index < len(self.hand):
-                index = int(input("Invalid index. Enter again:"))
+            index = number_query("Card Index to discard:", lambda x: 0 <= x < len(self.hand))
             self.game.recycle_card(self.hand.pop(index))
     
     def end(self):
@@ -144,9 +180,8 @@ class Hero():
         print("Cards:")
         print(self.hand)
 
-        index = int(input("Card Index (Enter -1 to 'bfk'):"))
-        while index != -1 and not self.hand[index].usable_out_round():
-            index = int(input("Card Index (Enter -1 to 'bfk'):"))
+        index = number_query("Card Index to respond(Enter -1 to do nothing):",
+                             lambda x: x == -1 or self.hand[x].usable_out_round())
         if index == -1:
             self.take_damage(1)
         else:
@@ -156,6 +191,7 @@ class Hero():
         self.hp -= amount
         if self.hp <= 0:
             self.alive = False
+            self.game.check_win_condition()
 
 if __name__ == "__main__":
     g = Game(seed=0)
