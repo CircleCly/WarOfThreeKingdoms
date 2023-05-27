@@ -1,6 +1,32 @@
-from card import Card
 import random
+class Card():
+    def __init__(self, suit: str, num: int, name: str):
+        self.suit = suit
+        self.num = num
+        self.name = name
 
+    def usable_in_round(self) -> bool:
+        if self.name == "fire":
+            return True
+        else:
+            return False
+    
+    def usable_out_round(self):
+        if self.name == "dodge":
+            return True
+        return False
+    
+    def can_target(self, user, target) -> bool:
+        if self.name == "fire":
+            return user != target
+        return True
+        
+    def __str__(self):
+        return f"({self.suit}, {self.num}, {self.name})"
+    
+    def __repr__(self):
+        return str(self)
+    
 class Game():
     def __init__(self, seed: int):
         random.seed(seed)
@@ -11,6 +37,10 @@ class Game():
         
         self.card_pile: list[Card] = Game.get_fire_dodge_pile()
         self.discard_pile: list[Card] = []
+
+        for player in self.players:
+            for i in range(4):
+                player.hero.hand.append(self.draw_card())
 
     def get_fire_dodge_pile():
         pile = []
@@ -26,7 +56,7 @@ class Game():
         cur_player_id = 0
         while True:
             cur_player = self.players[cur_player_id]
-            cur_player
+            cur_player.hero.do_round()
 
     
     def draw_card(self) -> Card:
@@ -43,7 +73,7 @@ class Player():
     def __init__(self, player_id: int, identity: str):
         self.identity = identity
         self.id = player_id
-        self.hero = None
+        self.hero: Hero = None
     
     def choose_hero(self, hero):
         self.hero = hero
@@ -129,4 +159,4 @@ class Hero():
 
 if __name__ == "__main__":
     g = Game(seed=0)
-    print(g.card_pile)
+    g.play_game()
